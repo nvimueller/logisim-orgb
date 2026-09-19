@@ -8,3 +8,7 @@ mais importante: mux que seleciona se registrador destino vai receber a flag de 
 
 modificação das memórias para suportar a nova instrução
 mux parecido com o de monociclo para passar a flag, a menos de um sinal do estado atual ser maior que 1, porque estava gerando erro na incrementação do pc no estado 0, pois o func3 permanecia ainda
+
+= SLTIU Pipeline
+
+mudança igual a do monociclo, pois sinais são iguais
