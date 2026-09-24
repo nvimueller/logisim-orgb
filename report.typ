@@ -1,3 +1,9 @@
+= LUI Monociclo
+
+ajuste no gerador de imediatos para isolar os 20 bits mais significativos da instrução e preencher com 12 zeros à direita (formato U).
+configuração do controle na ROM para forçar uma soma normal na ULA, ativar o uso do imediato (alusrc) e permitir a escrita (regwrite).
+mais importante: adição de um mux na entrada superior da ULA, controlado por um comparador do opcode da LUI (0x37). se a instrução for LUI, esse mux injeta uma constante 0 para a ULA somar com o imediato, senão, deixa passar a leitura normal do registrador 1.
+
 = SLTIU Monociclo
 
 usar subtração normal da ULA
