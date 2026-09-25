@@ -4,6 +4,18 @@ ajuste no gerador de imediatos para isolar os 20 bits mais significativos da ins
 configuração do controle na ROM para forçar uma soma normal na ULA, ativar o uso do imediato (alusrc) e permitir a escrita (regwrite).
 mais importante: adição de um mux na entrada superior da ULA, controlado por um comparador do opcode da LUI (0x37). se a instrução for LUI, esse mux injeta uma constante 0 para a ULA somar com o imediato, senão, deixa passar a leitura normal do registrador 1.
 
+= LUI Multiciclo
+
+modificação no datapath aproveitando o mux já existente na entrada superior da ULA (alusrca), conectando apenas uma constante 0 numa de suas portas livres.
+programação da ROM de próximo estado para reconhecer o opcode 0x37 na fase de decodificação (estado 01) e desviar o fluxo para dois novos estados (08 e 09).
+mais importante: programação da ROM de saída para orquestrar os sinais no tempo. o estado de execução (08) aciona os muxes para injetar o 0 e o imediato na ULA forçando uma soma; o estado de writeback (09) isola a gravação, ativando apenas o regwrite para salvar o valor do aluout no registrador destino.
+
+= LUI Pipeline
+
+expansão da largura da ROM no bloco de controle de 8 para 9 bits para criar o novo sinal de controle exclusivo LUIsel durante o estágio de decodificação (ID) ao identificar o opcode 0x37.
+roteamento minucioso dos fios no separador da barreira ID/EX para respeitar o fluxo do pipeline. os sinais de execução (ALUOp e ALUSrc) foram isolados para morrerem no estágio EX, o novo sinal LUIsel foi puxado para comandar a entrada da ULA no mesmo estágio, e os sinais de memória e writeback foram agrupados num novo separador para continuarem a viagem até ao registrador EX/MEM.
+modificação do datapath no estágio de execução (EX) com a inserção de um novo mux na entrada superior da ULA. comandado pelo sinal LUIsel que viajou pela barreira, este mux passa a injetar uma constante 0 para a LUI ou permite a passagem normal do valor do registrador rs1 para as restantes operações matemáticas.
+
 = SLTIU Monociclo
 
 usar subtração normal da ULA
