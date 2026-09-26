@@ -44,3 +44,15 @@ configuração da ROM de geração de saída para orquestrar os sinais, ativando
 mais importante: modificação no bloco operativo com a adição de um segundo mux logo antes da entrada de dados do banco de registradores para encaminhar o endereço de retorno (oldpc). 
 a seleção desse mux é feita de forma combinacional por um comparador focado exclusivamente no opcode do JALR (0x67), garantindo que as instruções originais continuem a funcionar normalmente.
 
+= JALR Pipeline
+
+expansão do barramento da unidade de controle e dos registradores de barreira (como o ID/EX) para 10 bits, permitindo a propagação do novo sinal dedicado de seleção (jalr_sel) ao longo das fases do pipeline.
+inserção de um mux na saída da ULA no estágio de execução (EX). quando ativado pelo controle, esse mux ignora o resultado da ULA e injeta o valor de PC+4 no fluxo de dados,
+garantindo que o endereço de retorno chegue intacto até a fase de writeback para ser gravado no registrador destino.
+mais importante: adição de um mux na extrema esquerda, antes da entrada do PC (estágio IF),
+acionado simultaneamente pelo mesmo sinal do jalr vindo lá do estágio EX. ele intercepta o fluxo normal e injeta o endereço de destino do salto (o valor de rs calculado,
+puxado direto de um fio de feedback da saída da ULA), forçando o desvio da execução no mesmo ciclo em que o link é salvo.
+
+
+Feedback de Controlo: O sinal jalr_sel foi roteado do estágio EX até ao estágio IF para servir como gatilho (seletor) do MUX do PC.
+
