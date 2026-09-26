@@ -203,7 +203,6 @@ This file is intended to be loaded by Logisim (http://www.cburch.com/logisim/).
     <wire from="(50,630)" to="(50,640)"/>
     <wire from="(160,890)" to="(270,890)"/>
     <wire from="(920,460)" to="(920,490)"/>
-    <wire from="(600,150)" to="(640,150)"/>
     <wire from="(410,830)" to="(410,850)"/>
     <wire from="(840,300)" to="(840,330)"/>
     <wire from="(270,500)" to="(830,500)"/>
@@ -317,7 +316,6 @@ This file is intended to be loaded by Logisim (http://www.cburch.com/logisim/).
     <wire from="(680,950)" to="(1220,950)"/>
     <wire from="(1050,350)" to="(1050,510)"/>
     <wire from="(500,340)" to="(510,340)"/>
-    <wire from="(640,150)" to="(640,270)"/>
     <wire from="(100,710)" to="(240,710)"/>
     <wire from="(780,340)" to="(780,400)"/>
     <wire from="(460,640)" to="(460,830)"/>
@@ -840,6 +838,7 @@ This file is intended to be loaded by Logisim (http://www.cburch.com/logisim/).
       <a name="tristate" val="false"/>
       <a name="label" val="regwrite"/>
     </comp>
+    <wire from="(600,150)" to="(600,270)"/>
   </circuit>
   <circuit name="instruction register">
     <a name="circuit" val="instruction register"/>
@@ -3411,7 +3410,7 @@ This file is intended to be loaded by Logisim (http://www.cburch.com/logisim/).
       <a name="dataWidth" val="15"/>
       <a name="contents">addr/data: 8 15
 44a d00 a00 c a0 14 2200 80
-b00 80 5201 a02 80 147*0 a00
+b00 80 5201 a82 148*0 a00
 </a>
     </comp>
     <comp lib="2" loc="(870,40)" name="Multiplexer">
@@ -3429,8 +3428,7 @@ b00 80 5201 a02 80 147*0 a00
 1 767*0 1 2 3 4 4092*0 1
 a0 158*0 7 3935*0 1 2 5 4093*0
 1 6 4*0 7 1017*0 1 8 6*0
-9 11255*0 1 a 1022*0 1 b 9*0
-c
+9 11255*0 1 a 1022*0 1 b
 </a>
     </comp>
     <comp lib="4" loc="(520,410)" name="Register">
