@@ -30,3 +30,10 @@ mux parecido com o de monociclo para passar a flag, a menos de um sinal do estad
 = SLTIU Pipeline
 
 mudança igual a do monociclo, pois sinais são iguais
+
+= JALR Monociclo
+
+Coloquei um MUX novo logo antes do PC pra ele poder receber o endereço do salto direto da ALU (rs1 + imediato).
+Coloquei outro MUX lá na entrada de dados do banco de registradores pra conseguirmos salvar o PC + 4 no registrador destino.
+No bloco de controle, criei uma flag nova chamada jalr_sel que aciona esses dois MUXes ao mesmo tempo.
+Pra fazer isso caber, tive que aumentar os splitters e a ROM de controle pra 9 bits. O valor na ROM pro opcode do JALR (endereço 67) ficou 1c0 (que liga o nosso jalr_sel, o regwrite e o alusrc pra pegar o imediato).
