@@ -37,3 +37,10 @@ Coloquei um MUX novo logo antes do PC pra ele poder receber o endereço do salto
 Coloquei outro MUX lá na entrada de dados do banco de registradores pra conseguirmos salvar o PC + 4 no registrador destino.
 No bloco de controle, criei uma flag nova chamada jalr_sel que aciona esses dois MUXes ao mesmo tempo.
 Pra fazer isso caber, tive que aumentar os splitters e a ROM de controle pra 9 bits. O valor na ROM pro opcode do JALR (endereço 67) ficou 1c0 (que liga o nosso jalr_sel, o regwrite e o alusrc pra pegar o imediato).
+
+= JALR Multiciclo
+programação da ROM de próximo estado para reconhecer o opcode 0x67 na fase de decodificação (estado 01) e desviar o fluxo para dois novos estados livres (0B e 0C).
+configuração da ROM de geração de saída para orquestrar os sinais, ativando a soma da ULA e a escrita no PC no estado de execução (0B), e o regwrite no estado de writeback (0C). 
+mais importante: modificação no bloco operativo com a adição de um segundo mux logo antes da entrada de dados do banco de registradores para encaminhar o endereço de retorno (oldpc). 
+a seleção desse mux é feita de forma combinacional por um comparador focado exclusivamente no opcode do JALR (0x67), garantindo que as instruções originais continuem a funcionar normalmente.
+
