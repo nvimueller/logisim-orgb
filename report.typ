@@ -87,3 +87,19 @@ no JALR, a ROM de controle não tinha entrada para o opcode 0x67, então o JALR 
 o fio do jalr_sel chegava na entrada de habilitação do mux antes do PC, e não no seletor. com o seletor solto e a habilitação em 0 nas outras instruções, o PC recebia um valor indefinido. o fio foi movido para o seletor.
 mais importante: ao passar os fios do JALR, a linha do seletor do mux de desvio (branch AND zero) ganhou junções com a linha do ALUSrc e com o carry-in do somador de desvio, deixando os três sinais em curto. as junções foram desfeitas e as duas linhas voltaram a só se cruzar.
 o registrador destino recebia o PC do próprio jalr, e não PC + 4. foi adicionado um somador PC + 4 no estágio EX, ligado ao mux por túneis (pc_ex e pc_mais_4_ex).
+
+= BGE Monociclo
+
+o BGE usa o mesmo opcode do beq (0x63) e o mesmo formato de imediato, então a ROM de controle e o gerador de imediatos não precisaram de mudança.
+a flag "menor que" da ULA não serve para o BGE, porque ela vem do empréstimo do subtrator e compara sem sinal. por isso foi adicionado um comparador de 32 bits em complemento de dois, ligado nas duas entradas da ULA por túneis (bge_a e bge_b). a negação da saída "menor que" desse comparador dá o rs1 >= rs2.
+mais importante: o fio do zero da ULA que ia para a porta AND do desvio foi trocado por um mux de 1 bit (túnel cond_desvio). um comparador do funct3 com 101 escolhe a condição: se for BGE, a porta AND recebe o rs1 >= rs2, senão, recebe o zero normal, e o beq continua funcionando igual.
+
+= BGE Multiciclo
+
+mesma lógica do monociclo, com os túneis ligados nas saídas dos muxes alusrca e alusrcb, que no estado do desvio (0A) já entregam os registradores A e B.
+a condição escolhida pelo mux substitui o zero na porta AND com o pcwritecond. a ROM de próximo estado e a ROM de saída não mudaram, porque o BGE passa pelos mesmos estados do beq (00, 01 e 0A).
+
+= BGE Pipeline
+
+mesma lógica do monociclo, montada no estágio EX. os túneis pegam o rs1 e o rs2 direto dos registradores da barreira ID/EX e o funct3 do registrador de 3 bits que já existia para o controle da ULA.
+a condição passa a ser gravada no lugar do zero no registrador de 1 bit da barreira EX/MEM, então a porta AND com o sinal branch no estágio MEM e o mux do PC continuaram iguais.
