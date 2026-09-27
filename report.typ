@@ -20,7 +20,7 @@ modificação do datapath no estágio de execução (EX) com a inserção de um 
 
 usar subtração normal da ULA
 setar flags pela memória de baixo
-mais importante: mux que seleciona se registrador destino vai receber a flag de instrução ou o próprio resultado da subtração implementado por meio da func3 da SLTIU. se for igual a 011, rd recebe a flag (1 ou 0), senão, recebe o resultado da ULA mesmo
+Mux que seleciona se registrador destino vai receber a flag de instrução ou o próprio resultado da subtração implementado por meio da func3 da SLTIU. se for igual a 011, rd recebe a flag (1 ou 0), senão, recebe o resultado da ULA mesmo
 
 = SLTIU Multiciclo
 
@@ -41,72 +41,47 @@ Pra fazer isso caber, tive que aumentar os splitters e a ROM de controle pra 9 b
 = JALR Multiciclo
 programação da ROM de próximo estado para reconhecer o opcode 0x67 na fase de decodificação (estado 01) e desviar o fluxo para dois novos estados livres (0B e 0C).
 configuração da ROM de geração de saída para orquestrar os sinais, ativando a soma da ULA e a escrita no PC no estado de execução (0B), e o regwrite no estado de writeback (0C). 
-mais importante: modificação no bloco operativo com a adição de um segundo mux logo antes da entrada de dados do banco de registradores para encaminhar o endereço de retorno (oldpc). 
+Modificação no bloco operativo com a adição de um segundo mux logo antes da entrada de dados do banco de registradores para encaminhar o endereço de retorno (oldpc). 
 a seleção desse mux é feita de forma combinacional por um comparador focado exclusivamente no opcode do JALR (0x67), garantindo que as instruções originais continuem a funcionar normalmente.
+
+= JALR Pipeline
+
+expansão da ROM de controle de 9 para 10 bits para criar o sinal jalr_sel. a entrada do opcode 0x67 ficou 284 (jalr_sel, regwrite e alusrc)
+jalr_sel passa pela barreira ID/EX para ser usado no estágio EX
+Mux novo antes do PC que recebe o resultado da ULA (rs1 + imediato) quando jalr_sel está ligado
+Mux no estágio EX que troca o resultado da ULA pelo PC + 4 antes de ir para a barreira EX/MEM, para salvar o endereço de retorno no rd. como o PC que chega no EX é o da própria instrução, foi adicionado um somador PC + 4 nesse estágio
+o salto acontece no estágio EX e as 2 instruções que entraram depois do jalr também executam, então é preciso colocar nops depois dele
 
 = DIV Monociclo
 
-adição de um divisor com sinal na ULA, ligado na entrada 3 do mux de operações, que estava livre. os operandos e o resultado chegam por túneis (divA, divB e divQ) para não mexer na fiação que já existia.
-como o divisor do logisim só faz divisão sem sinal, o circuito tira o módulo dos dois operandos (negador + comparador com 0 + mux), divide, e nega o quociente quando os sinais de A e B são diferentes (comparador de 1 bit nos bits de sinal).
-mais importante: tratamento dos casos especiais da especificação. a divisão por zero devolve -1 (0xFFFFFFFF) por meio de um mux final controlado pelo comparador B == 0, e o resultado é truncado em direção a zero (-7 / 2 = -3). o caso -2^31 / -1 também sai certo, dando -2^31.
-no controle da ULA, adição de um mux no caminho do tipo R (aluop 10) que gera o código 3 quando o funct3 é 100 e o funct7[0] é 1, que é a marca das instruções da extensão M.
-a ROM de controle não precisou de mudança, porque o div usa o mesmo opcode do tipo R (0x33).
+divisor com sinal adicionado na ULA, na entrada 3 do mux de operações (que estava livre)
+como o divisor do logisim é sem sinal, o circuito divide os módulos dos operandos e nega o quociente quando os sinais de A e B são diferentes
+divisão por zero devolve -1 (0xFFFFFFFF), como pede a especificação
+Mux novo no controle da ULA que gera o código 3 quando é tipo R com funct3 = 100 e funct7[0] = 1 (div). a ROM de controle não mudou, porque o div usa o mesmo opcode do tipo R (0x33)
 
 = DIV Multiciclo
 
-mudança igual à do monociclo na ULA e no controle da ULA, pois os blocos são os mesmos.
-programação da ROM de próximo estado para o tipo R (opcode 0x33), que estava faltando: busca (00), decodificação (01), execução (06) e writeback (07). como o divisor é combinacional, ele cabe no estado de execução normal.
+mudança igual à do monociclo na ULA e no controle da ULA
+adição dos estados do tipo R na ROM de próximo estado (01 → 06 → 07), que estavam faltando
 
 = DIV Pipeline
 
-mudança igual à do monociclo na ULA e no controle da ULA.
-adição da entrada do tipo R (0x33) na ROM de controle com o valor 082 (regwrite e aluop 10), que não existia. o divisor fica todo dentro do estágio EX.
-
-= Correções Monociclo
-
-o addi usava aluop 01, que o controle da ULA transforma em subtração. a ROM passou a usar aluop 00 (soma) no opcode 0x13.
-o bit jalr_sel (bit 8) estava ligado também no load, no addi, no tipo R e no LUI, o que fazia essas instruções saltarem. ele ficou ligado só no JALR.
-a entrada do JALR na ROM estava no endereço 0x66 (102), mas o opcode do JALR é 0x67 (103). o valor 1c0 foi movido para o endereço certo.
-mais importante: três fios do JALR estavam em lugares errados. a saída do mux antes do PC terminava 10 px acima da entrada D do registrador, deixando o PC sem entrada. a entrada 1 desse mux estava ligada na saída "menor que" da ULA (a mesma do SLTIU), e não no resultado. e o mux de dados do banco de registradores recebia a constante 4, e não o PC + 4. os dois últimos foram religados por túneis (resultado_ula e pc_mais_4).
-o SLTIU olhava só o funct3 == 011, que no LUI faz parte do imediato. foi adicionada uma porta AND com a negação do comparador de opcode do LUI (túnel e_lui) antes do seletor do mux.
-os dois muxes do JALR (antes do PC e na escrita do banco de registradores) tinham a opção de habilitação ligada, com a entrada de habilitação solta. o logisim 2.7.1 trata essa entrada solta como desligada, então a saída ficava flutuando e nenhum registrador era escrito. a habilitação foi desligada nos muxes.
-o imediato do LUI tinha os fios dos bits 23 a 31 trocados (por exemplo, o bit 23 recebia o bit 25 da instrução), o que só aparecia com imediatos grandes como 0x12345. o splitter do tipo U foi trocado por uma porta AND de 32 bits entre a instrução e a constante 0xFFFFF000 (túneis instr_u e imm_u).
-
-= Correções Multiciclo
-
-as entradas de load, store, tipo R e branch na ROM de próximo estado estavam no formato opcode\<\<4, mas o endereço é opcode\<\<8 | estado. elas foram movidas para o formato certo, e foram adicionadas as transições da busca (estado 00) para cada opcode, incluindo o LUI (0x3700). sem essa transição, a instrução seguinte era pulada.
-o addi usava aluop 01 no estado A0 (1a00), que virou 0a00 (aluop 00).
-o estado 08 ficou com o LUI, então o branch foi para o estado 0A, com a saída 5201 (pcwritecond, alusrca = A, alusrcb = B, aluop 01 e pcsource = aluout). antes, o estado do branch não tinha nenhum sinal ligado.
-mais importante: no JALR, o mux de dados do banco de registradores recebia o oldpc, que é o endereço do próprio jalr, e não PC + 4. a entrada foi religada no registrador PC, que depois da busca já vale PC + 4, e o regwrite passou para o estado 0B, junto com a escrita no PC, porque no estado 0C o PC já tem o destino do salto. o estado 0C deixou de ser usado.
-o SLTIU recebeu a mesma correção do monociclo para não disparar no LUI, usando alusrca == 11 (que só acontece no estado 08 do LUI) como sinal de LUI.
-o mux do JALR na escrita do banco de registradores tinham a opção de habilitação ligada, com a entrada de habilitação solta. o logisim 2.7.1 trata essa entrada solta como desligada, então a saída ficava flutuando e nenhum registrador era escrito. a habilitação foi desligada nos muxes.
-o imediato do LUI tinha os fios dos bits 23 a 31 trocados (por exemplo, o bit 23 recebia o bit 25 da instrução), o que só aparecia com imediatos grandes como 0x12345. o splitter do tipo U foi trocado por uma porta AND de 32 bits entre a instrução e a constante 0xFFFFF000 (túneis instr_u e imm_u).
-
-= Correções Pipeline
-
-adição das entradas de sw (024), tipo R (082) e branch (009) na ROM de controle, e o addi passou a usar aluop 00 (084).
-o bit LUIsel estava ligado também no load e no addi (1d4 e 185), zerando o operando A dessas instruções. ele ficou ligado só no LUI (184).
-o SLTIU recebeu a mesma correção do monociclo para não disparar no LUI, usando o sinal LUIsel que chega no estágio EX.
-no JALR, a ROM de controle não tinha entrada para o opcode 0x67, então o JALR não fazia nada. foi adicionado o valor 284 (jalr_sel, regwrite e alusrc).
-o fio do jalr_sel chegava na entrada de habilitação do mux antes do PC, e não no seletor. com o seletor solto e a habilitação em 0 nas outras instruções, o PC recebia um valor indefinido. o fio foi movido para o seletor.
-mais importante: ao passar os fios do JALR, a linha do seletor do mux de desvio (branch AND zero) ganhou junções com a linha do ALUSrc e com o carry-in do somador de desvio, deixando os três sinais em curto. as junções foram desfeitas e as duas linhas voltaram a só se cruzar.
-o registrador destino recebia o PC do próprio jalr, e não PC + 4. foi adicionado um somador PC + 4 no estágio EX, ligado ao mux por túneis (pc_ex e pc4_ex).
-os dois muxes do JALR (antes do PC e na escolha do valor do registrador destino) tinham a opção de habilitação ligada, com a entrada de habilitação solta. o logisim 2.7.1 trata essa entrada solta como desligada, então a saída ficava flutuando e nenhum registrador era escrito. a habilitação foi desligada nos muxes.
-o imediato do LUI tinha os fios dos bits 23 a 31 trocados (por exemplo, o bit 23 recebia o bit 25 da instrução), o que só aparecia com imediatos grandes como 0x12345. o splitter do tipo U foi trocado por uma porta AND de 32 bits entre a instrução e a constante 0xFFFFF000 (túneis instr_u e imm_u).
+mudança igual à do monociclo na ULA e no controle da ULA
+adição da entrada do tipo R (0x33) na ROM de controle com o valor 082 (regwrite e aluop 10)
 
 = BGE Monociclo
 
-o BGE usa o mesmo opcode do beq (0x63) e o mesmo formato de imediato, então a ROM de controle e o gerador de imediatos não precisaram de mudança.
-a flag "menor que" da ULA não serve para o BGE, porque ela vem do empréstimo do subtrator e compara sem sinal. por isso foi adicionado um comparador de 32 bits em complemento de dois, ligado nas duas entradas da ULA por túneis (bge_a e bge_b). a negação da saída "menor que" desse comparador dá o rs1 >= rs2.
-mais importante: o fio do zero da ULA que ia para a porta AND do desvio foi trocado por um mux de 1 bit (túnel cond_desvio). um comparador do funct3 com 101 escolhe a condição: se for BGE, a porta AND recebe o rs1 >= rs2, senão, recebe o zero normal, e o beq continua funcionando igual.
+usa o mesmo opcode e o mesmo imediato do beq, então ROM de controle e gerador de imediatos não mudaram
+comparador com sinal entre rs1 e rs2, porque a flag menor que da ULA compara sem sinal
+Mux antes da porta AND do desvio, controlado pelo funct3. se for igual a 101, a porta AND recebe rs1 >= rs2, senão, recebe o zero normal da ULA (beq)
 
 = BGE Multiciclo
 
-mesma lógica do monociclo, com os túneis ligados nas saídas dos muxes alusrca e alusrcb, que no estado do desvio (0A) já entregam os registradores A e B.
-a condição escolhida pelo mux substitui o zero na porta AND com o pcwritecond. a ROM de próximo estado e a ROM de saída não mudaram, porque o BGE passa pelos mesmos estados do beq (00, 01 e 0A).
+mesma lógica do monociclo, pegando A e B na saída dos muxes alusrca e alusrcb
+ROMs não mudaram, pois o bge passa pelos mesmos estados do beq (00, 01 e 0A)
 
 = BGE Pipeline
 
-no pipeline, a lógica do BGE fica dentro da ULA e do controle da ULA, para não ocupar espaço no estágio EX, que já é bem cheio de fios.
-no controle da ULA, o caminho do aluop 01 (desvios) ganhou um mux: se o funct3 for 101, o código enviado para a ULA é 7, senão continua 6 (subtração, usado pelo beq).
-mais importante: na ULA, o código 7 faz a mesma subtração do código 6, mas a saída zero passa a ser o resultado de um comparador em complemento de dois (A >= B). assim, o registrador do zero na barreira EX/MEM, a porta AND com o sinal branch no estágio MEM e o mux do PC continuaram iguais.
+lógica feita dentro da ULA e do controle da ULA, porque o estágio EX já estava cheio de fios
+controle da ULA manda o código 7 quando é desvio com funct3 = 101, senão manda o 6 normal (beq)
+Na ULA, o código 7 faz a subtração normal, mas a saída zero passa a ser o resultado de A >= B com sinal. assim o resto do desvio no pipeline continua igual
