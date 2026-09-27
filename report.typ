@@ -69,6 +69,8 @@ o bit jalr_sel (bit 8) estava ligado também no load, no addi, no tipo R e no LU
 a entrada do JALR na ROM estava no endereço 0x66 (102), mas o opcode do JALR é 0x67 (103). o valor 1c0 foi movido para o endereço certo.
 mais importante: três fios do JALR estavam em lugares errados. a saída do mux antes do PC terminava 10 px acima da entrada D do registrador, deixando o PC sem entrada. a entrada 1 desse mux estava ligada na saída "menor que" da ULA (a mesma do SLTIU), e não no resultado. e o mux de dados do banco de registradores recebia a constante 4, e não o PC + 4. os dois últimos foram religados por túneis (resultado_ula e pc_mais_4).
 o SLTIU olhava só o funct3 == 011, que no LUI faz parte do imediato. foi adicionada uma porta AND com a negação do comparador de opcode do LUI (túnel e_lui) antes do seletor do mux.
+os dois muxes do JALR (antes do PC e na escrita do banco de registradores) tinham a opção de habilitação ligada, com a entrada de habilitação solta. o logisim 2.7.1 trata essa entrada solta como desligada, então a saída ficava flutuando e nenhum registrador era escrito. a habilitação foi desligada nos muxes.
+o imediato do LUI tinha os fios dos bits 23 a 31 trocados (por exemplo, o bit 23 recebia o bit 25 da instrução), o que só aparecia com imediatos grandes como 0x12345. o splitter do tipo U foi trocado por uma porta AND de 32 bits entre a instrução e a constante 0xFFFFF000 (túneis instr_u e imm_u).
 
 = Correções Multiciclo
 
@@ -77,6 +79,8 @@ o addi usava aluop 01 no estado A0 (1a00), que virou 0a00 (aluop 00).
 o estado 08 ficou com o LUI, então o branch foi para o estado 0A, com a saída 5201 (pcwritecond, alusrca = A, alusrcb = B, aluop 01 e pcsource = aluout). antes, o estado do branch não tinha nenhum sinal ligado.
 mais importante: no JALR, o mux de dados do banco de registradores recebia o oldpc, que é o endereço do próprio jalr, e não PC + 4. a entrada foi religada no registrador PC, que depois da busca já vale PC + 4, e o regwrite passou para o estado 0B, junto com a escrita no PC, porque no estado 0C o PC já tem o destino do salto. o estado 0C deixou de ser usado.
 o SLTIU recebeu a mesma correção do monociclo para não disparar no LUI, usando alusrca == 11 (que só acontece no estado 08 do LUI) como sinal de LUI.
+o mux do JALR na escrita do banco de registradores tinham a opção de habilitação ligada, com a entrada de habilitação solta. o logisim 2.7.1 trata essa entrada solta como desligada, então a saída ficava flutuando e nenhum registrador era escrito. a habilitação foi desligada nos muxes.
+o imediato do LUI tinha os fios dos bits 23 a 31 trocados (por exemplo, o bit 23 recebia o bit 25 da instrução), o que só aparecia com imediatos grandes como 0x12345. o splitter do tipo U foi trocado por uma porta AND de 32 bits entre a instrução e a constante 0xFFFFF000 (túneis instr_u e imm_u).
 
 = Correções Pipeline
 
@@ -86,7 +90,9 @@ o SLTIU recebeu a mesma correção do monociclo para não disparar no LUI, usand
 no JALR, a ROM de controle não tinha entrada para o opcode 0x67, então o JALR não fazia nada. foi adicionado o valor 284 (jalr_sel, regwrite e alusrc).
 o fio do jalr_sel chegava na entrada de habilitação do mux antes do PC, e não no seletor. com o seletor solto e a habilitação em 0 nas outras instruções, o PC recebia um valor indefinido. o fio foi movido para o seletor.
 mais importante: ao passar os fios do JALR, a linha do seletor do mux de desvio (branch AND zero) ganhou junções com a linha do ALUSrc e com o carry-in do somador de desvio, deixando os três sinais em curto. as junções foram desfeitas e as duas linhas voltaram a só se cruzar.
-o registrador destino recebia o PC do próprio jalr, e não PC + 4. foi adicionado um somador PC + 4 no estágio EX, ligado ao mux por túneis (pc_ex e pc_mais_4_ex).
+o registrador destino recebia o PC do próprio jalr, e não PC + 4. foi adicionado um somador PC + 4 no estágio EX, ligado ao mux por túneis (pc_ex e pc4_ex).
+os dois muxes do JALR (antes do PC e na escolha do valor do registrador destino) tinham a opção de habilitação ligada, com a entrada de habilitação solta. o logisim 2.7.1 trata essa entrada solta como desligada, então a saída ficava flutuando e nenhum registrador era escrito. a habilitação foi desligada nos muxes.
+o imediato do LUI tinha os fios dos bits 23 a 31 trocados (por exemplo, o bit 23 recebia o bit 25 da instrução), o que só aparecia com imediatos grandes como 0x12345. o splitter do tipo U foi trocado por uma porta AND de 32 bits entre a instrução e a constante 0xFFFFF000 (túneis instr_u e imm_u).
 
 = BGE Monociclo
 
@@ -101,5 +107,6 @@ a condição escolhida pelo mux substitui o zero na porta AND com o pcwritecond.
 
 = BGE Pipeline
 
-mesma lógica do monociclo, montada no estágio EX. os túneis pegam o rs1 e o rs2 direto dos registradores da barreira ID/EX e o funct3 do registrador de 3 bits que já existia para o controle da ULA.
-a condição passa a ser gravada no lugar do zero no registrador de 1 bit da barreira EX/MEM, então a porta AND com o sinal branch no estágio MEM e o mux do PC continuaram iguais.
+no pipeline, a lógica do BGE fica dentro da ULA e do controle da ULA, para não ocupar espaço no estágio EX, que já é bem cheio de fios.
+no controle da ULA, o caminho do aluop 01 (desvios) ganhou um mux: se o funct3 for 101, o código enviado para a ULA é 7, senão continua 6 (subtração, usado pelo beq).
+mais importante: na ULA, o código 7 faz a mesma subtração do código 6, mas a saída zero passa a ser o resultado de um comparador em complemento de dois (A >= B). assim, o registrador do zero na barreira EX/MEM, a porta AND com o sinal branch no estágio MEM e o mux do PC continuaram iguais.

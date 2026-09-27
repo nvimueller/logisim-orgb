@@ -1,0 +1,176 @@
+Testes finais — monociclo, multiciclo e pipeline
+
+T1 — div com sinal
+Cobre as combinações de sinal, o resultado truncado em direção a zero, a divisão por zero (resultado −1) e um sub logo depois, para confirmar que o div não afetou as outras operações da ALU.
+
+| Endereço | Código | Instrução |
+|----|----------|-----------------|
+|  0 | ff900093 | addi x1, x0, -7 |
+|  4 | 00200113 | addi x2, x0, 2  |
+|  8 | 00000193 | addi x3, x0, 0  |
+| 12 | 00700513 | addi x10, x0, 7 |
+| 16 | 0220c233 | div  x4, x1, x2 |
+| 20 | 022542b3 | div  x5, x10, x2|
+| 24 | 0210c333 | div  x6, x1, x1 |
+| 28 | 021143b3 | div  x7, x2, x1 |
+| 32 | 0230c433 | div  x8, x1, x3 |
+| 36 | 404284b3 | sub  x9, x5, x4 |
+| 40 | 00000063 | beq x0, x0, fim |
+
+Valores esperados:
+
+| Registrador | Valor |
+|----|----------------|
+| x1 | 0xFFFFFFF9 (-7)|
+| x2 | 0x00000002 (2) |
+| x3 | 0x00000000 (0) |
+| x10| 0x00000007 (7) |
+| x4 | 0xFFFFFFFD (-3)|
+| x5 | 0x00000003 (3) |
+| x6 | 0x00000001 (1) |
+| x7 | 0x00000000 (0) |
+| x8 | 0xFFFFFFFF (-1)|
+| x9 | 0x00000006 (6) |
+
+T2 — LUI
+O lui x3 tem o campo rs1 da instrução apontando para x1, que vale 5. Se o operando A da ALU não for zerado no LUI, x3 sai 0x00008005 em vez de 0x00008000. Os pares lui + addi conferem a montagem de constantes de 32 bits, inclusive com addi negativo. O lui x7 tem o campo funct3 igual a 011, o mesmo do sltiu: se a lógica do SLTIU não checar o LUI, x7 sai 0x00000001. O addi x8 logo depois do lui confere, no multiciclo, a transição da busca depois de um LUI; sem ela, a instrução seguinte é pulada e x8 fica em 0. No multiciclo, o lui passa pelos estados 0 → 1 → 8 → 9.
+
+| Endereço | Código | Instrução |
+|----|----------|--------------------|
+| 0  | 00500093 | addi x1, x0, 5     |
+| 4  | 12345137 | lui  x2, 0x12345   |
+| 8  | 000081b7 | lui  x3, 0x00008   |
+| 12 | 12345237 | lui  x4, 0x12345   |
+| 16 | 67820213 | addi x4, x4, 0x678 |
+| 20 | fffff2b7 | lui  x5, 0xFFFFF   |
+| 24 | 12345337 | lui  x6, 0x12345   |
+| 28 | fff30313 | addi x6, x6, -1    |
+| 32 | 000033b7 | lui  x7, 0x00003   |
+| 36 | 00138413 | addi x8, x7, 1     |
+| 40 | 00000063 | beq x0, x0, fim    |
+
+Valores esperados:
+
+| Registrador | Valor |
+|----|------------------------|
+| x1 | 0x00000005 (5)         |
+| x2 | 0x12345000 (305418240) |
+| x3 | 0x00008000 (32768)     |
+| x4 | 0x12345678 (305419896) |
+| x5 | 0xFFFFF000 (-4096)     |
+| x6 | 0x12344FFF (305418239) |
+| x7 | 0x00003000 (12288)     |
+| x8 | 0x00003001 (12289)     |
+
+T3 — SLTIU
+x6 e x7 são os casos que diferenciam a comparação sem sinal da comparação com sinal: um slti daria x6 = 1 e x7 = 0. x10 confere o caso de valores iguais, e x11 confere se um addi logo depois do sltiu ainda funciona.
+
+| Endereço | Código | Instrução |
+|----|----------|------------------|
+| 0  | 00500093 | addi  x1, x0, 5  |
+| 4  | fff00113 | addi  x2, x0, -1 |
+| 8  | 00a0b193 | sltiu x3, x1, 10 |
+| 12 | 0050b213 | sltiu x4, x1, 5  |
+| 16 | 0030b293 | sltiu x5, x1, 3  |
+| 20 | 00513313 | sltiu x6, x2, 5  |
+| 24 | fff0b393 | sltiu x7, x1, -1 |
+| 28 | 00103413 | sltiu x8, x0, 1  |
+| 32 | 0010b493 | sltiu x9, x1, 1  |
+| 36 | fff13513 | sltiu x10, x2, -1|
+| 40 | 00108593 | addi  x11, x1, 1 |
+| 44 | 00000063 | beq x0, x0, fim  |
+
+Valores esperados:
+
+| Registrador | Valor |
+|-----|----------------|
+| x1  | 0x00000005 (5) |
+| x2  | 0xFFFFFFFF (-1)|
+| x3  | 0x00000001 (1) |
+| x4  | 0x00000000 (0) |
+| x5  | 0x00000000 (0) |
+| x6  | 0x00000000 (0) |
+| x7  | 0x00000001 (1) |
+| x8  | 0x00000001 (1) |
+| x9  | 0x00000000 (0) |
+| x10 | 0x00000000 (0) |
+| x11 | 0x00000006 (6) |
+
+T4 — JALR
+Confere o destino do salto (rs1 + imediato, com imediato zero e negativo) e o endereço de retorno, que tem que ser o PC + 4 da própria instrução jalr, e não a constante 4 nem o PC do jalr. x6, x7 e x10 precisam continuar em 0. Como os saltos acontecem em PCs diferentes de zero, o teste também detecta o PC recebendo um valor errado. No multiciclo, o jalr passa pelos estados 0 → 1 → 11 (0xB). No pipeline, o salto só acontece quando o jalr chega ao estágio EX; as 2 instruções que entraram depois dele são NOPs na versão _pipeline.
+
+| Endereço | Código | Instrução |
+|----|----------|-----------------|
+| 0  | 01400093 | addi x1, x0, @alvo1 |
+| 4  | 02800193 | addi x3, x0, @alvo2+8 |
+| 8  | 000082e7 | jalr x5, 0(x1)  |
+| 12 | 00100313 | addi x6, x0, 1  |
+| 16 | 00100393 | addi x7, x0, 1  |
+| 20 | 00700413 | addi x8, x0, 7  |
+| 24 | ff8184e7 | jalr x9, -8(x3) |
+| 28 | 00100513 | addi x10, x0, 1 |
+| 32 | 00500593 | addi x11, x0, 5 |
+| 36 | 00000063 | beq x0, x0, fim |
+
+Valores esperados (monociclo e multiciclo):
+
+| Registrador | Valor |
+|-----|-----------------|
+| x1  | 0x00000014 (20) |
+| x3  | 0x00000028 (40) |
+| x5  | 0x0000000C (12) |
+| x6  | 0x00000000 (0)  |
+| x7  | 0x00000000 (0)  |
+| x8  | 0x00000007 (7)  |
+| x9  | 0x0000001C (28) |
+| x10 | 0x00000000 (0)  |
+| x11 | 0x00000005 (5)  |
+
+Valores esperados (pipeline, com os NOPs os endereços mudam):
+
+| Registrador | Valor |
+|-----|-----------------|
+| x1  | 0x00000050 (80) |
+| x3  | 0x00000088 (136)|
+| x5  | 0x00000024 (36) |
+| x6  | 0x00000000 (0)  |
+| x7  | 0x00000000 (0)  |
+| x8  | 0x00000007 (7)  |
+| x9  | 0x00000064 (100)|
+| x10 | 0x00000000 (0)  |
+| x11 | 0x00000005 (5)  |
+
+T5 — BGE
+O primeiro bge compara 5 com −3: com sinal, 5 ≥ −3 e o desvio acontece; uma comparação sem sinal veria −3 como 0xFFFFFFFD e não desviaria, deixando x10 = 1. O segundo bge não pode desviar (x11 = 2), o terceiro confere o caso de igualdade, e os dois beq no fim confirmam que o beq continua funcionando depois da mudança. x10, x12 e x14 precisam continuar em 0. No multiciclo, o bge usa o mesmo estado do beq (0 → 1 → 10).
+
+| Endereço | Código | Instrução |
+|----|----------|-----------------|
+| 0  | 00500093 | addi x1, x0, 5  |
+| 4  | ffd00113 | addi x2, x0, -3 |
+| 8  | 00500193 | addi x3, x0, 5  |
+| 12 | 0020d463 | bge  x1, x2, l1 |
+| 16 | 00100513 | addi x10, x0, 1 |
+| 20 | 00115463 | bge x2, x1, l2  |
+| 24 | 00200593 | addi x11, x0, 2 |
+| 28 | 0030d463 | bge x1, x3, l3  |
+| 32 | 00100613 | addi x12, x0, 1 |
+| 36 | 00208463 | beq x1, x2, l4  |
+| 40 | 00300693 | addi x13, x0, 3 |
+| 44 | 00308463 | beq x1, x3, l5  |
+| 48 | 00100713 | addi x14, x0, 1 |
+| 52 | 00900793 | addi x15, x0, 9 |
+| 56 | 00000063 | beq x0, x0, fim |
+
+Valores esperados:
+
+| Registrador | Valor  |
+|-----|----------------|
+| x1  | 0x00000005 (5) |
+| x2  | 0xFFFFFFFD (-3)|
+| x3  | 0x00000005 (5) |
+| x10 | 0x00000000 (0) |
+| x11 | 0x00000002 (2) |
+| x12 | 0x00000000 (0) |
+| x13 | 0x00000003 (3) |
+| x14 | 0x00000000 (0) |
+| x15 | 0x00000009 (9) |
